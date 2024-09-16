@@ -1,5 +1,6 @@
 import base64
 from io import BytesIO
+import time
 
 from django.shortcuts import render
 from matplotlib import pyplot as plt
@@ -47,14 +48,6 @@ from django.core.files.storage import default_storage
 
 #     return render(request, 'packing/packing_form.html', {'form': form})
 
-
-
-from django.shortcuts import render
-from django.core.files.base import ContentFile
-from django.core.files.storage import default_storage
-from django.conf import settings
-import base64
-
 def pack_items_view(request):
     form = ItemForm(request.POST or None)
     context = {}
@@ -82,9 +75,13 @@ def pack_items_view(request):
             max_weight=max_weight
         )
 
+        timestamp = int(time.time())
         image_file = ContentFile(base64.b64decode(image_path), name=f'{box_key}_plot.png')
         image_path = default_storage.save(f'plots/{box_key}_plot.png', image_file)
         image_url = f"{settings.MEDIA_URL}{image_path}"
+
+        request.session['image_to_delete'] = image_path
+        request.session['image_created_at'] = timestamp
 
         context.update({
             'total_items': total_items,
@@ -93,6 +90,17 @@ def pack_items_view(request):
             'total_volume': round(total_volume / 1000, 2),
             'image_path': image_url,
         })
+
+        if 'image_to_delete' in request.session and 'image_created_at' in request.session:
+            current_time = int(time.time())
+            image_created_at = request.session['image_created_at']
+            if current_time - image_created_at > 300:
+                image_path_to_delete = request.session['image_to_delete']
+                if default_storage.exists(image_path_to_delete):
+                    default_storage.delete(image_path_to_delete)
+                    del request.session['image_to_delete']
+                    del request.session['image_created_at']
+
 
     context['form'] = form
     return render(request, 'packing/packing_form.html', context)
