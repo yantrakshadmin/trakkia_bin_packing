@@ -34,9 +34,11 @@ def plot_items_in_box(L_box, B_box, H_box, L_item, B_item, H_item, weight_per_it
 
         total_items = 0
         total_volume = 0
+        total_weight = 0
         item_positions = []
         occupied_spaces = []
-        orientation_count = {orientation: 0 for orientation in orientations} 
+        orientation_count = {orientation: 0 for orientation in orientations}
+
         for orientation in orientations:
             dim = dimensions[orientation]
             num_L = int(L_box / (dim[0] + padding))
@@ -44,11 +46,17 @@ def plot_items_in_box(L_box, B_box, H_box, L_item, B_item, H_item, weight_per_it
             num_H = int(H_box / (dim[2] + padding))
 
             for i in range(num_L):
+                if max_weight and total_weight >= max_weight:
+                    return total_items, total_weight, total_volume, item_positions, orientation_count
+                
                 for j in range(num_B):
+                    if max_weight and total_weight >= max_weight:
+                        return total_items, total_weight, total_volume, item_positions, orientation_count
+                    
                     for k in range(num_H):
-                        if max_weight and total_items * weight_per_item >= max_weight:
-                            return total_items, item_positions, orientation_count
-
+                        if max_weight and total_weight >= max_weight:
+                            return total_items, total_weight, total_volume, item_positions, orientation_count
+                        
                         x = i * (dim[0] + padding)
                         y = j * (dim[1] + padding)
                         z = k * (dim[2] + padding)
@@ -58,11 +66,10 @@ def plot_items_in_box(L_box, B_box, H_box, L_item, B_item, H_item, weight_per_it
                             occupied_spaces.append((x, y, z, dim))
                             total_items += 1
                             orientation_count[orientation] += 1
-                            total_volume += dim[0] * dim[1] * dim[2]  # Volume of the item
+                            total_volume += dim[0] * dim[1] * dim[2]
+                            total_weight += weight_per_item
                         else:
                             continue
-
-        total_weight = total_items * weight_per_item
 
         return total_items, total_weight, total_volume, item_positions, orientation_count
 
