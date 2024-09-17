@@ -1,109 +1,3 @@
-<!-- <h1>Packing Algorithm Form</h1>
-<form method="post">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit">Submit</button>
-</form> -->
-
-
-
-
-<!-- <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Packing Algorithm</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: row;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            display: flex;
-            width: 100%;
-        }
-        .form-container {
-            flex: 1;
-            padding: 20px;
-            box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
-        }
-        .result-container {
-            flex: 1;
-            padding: 20px;
-            box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
-            background-color: #f9f9f9;
-        }
-        h1 {
-            font-size: 24px;
-            margin-bottom: 20px;
-        }
-        h2 {
-            font-size: 20px;
-            margin-top: 20px;
-        }
-        ul {
-            list-style-type: none;
-            padding: 0;
-        }
-        li {
-            margin-bottom: 10px;
-        }
-        button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-            border-radius: 5px;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        .image-container img {
-            max-width: 100%;
-            height: auto;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="form-container">
-            <h1>Packing Algorithm Form</h1>
-            <form method="post">
-                {% csrf_token %}
-                {{ form.as_p }}
-                <button type="submit">Submit</button>
-            </form>
-        </div>
-        <div class="result-container">
-            <h1>Results</h1>
-            <p>Total items placed: {{ total_items }}</p>
-            <p>Total weight of items placed: {{ total_weight }} kg</p>
-            <p>Total volume consumed: {{ total_volume }} cubic cm</p>
-            <h2>Items Count by Orientation:</h2>
-            <ul>
-                {% for orientation, count in orientation_count.items %}
-                    <li>{{ orientation }}: {{ count }}</li>
-                {% endfor %}
-            </ul>
-            <h2>Visual Representation:</h2>
-            <div class="image-container">
-                <img src="{{ image_path }}" alt="Packing Visualization">
-            </div>
-        </div>
-    </div>
-</body>
-</html> -->
-
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -153,6 +47,7 @@
             font-size: 16px;
             cursor: pointer;
             border-radius: 5px;
+            margin-bottom: 15px; 
         }
         button:hover {
             background-color: #0056b3;
@@ -163,15 +58,43 @@
             border: 1px solid #ddd;
             border-radius: 5px;
         }
+        #items-container div {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background-color: #f9f9f9;
+        }
+        #items-container label {
+            display: block;
+            margin-top: 10px;
+            margin-bottom: 5px;
+        }
+        #items-container input {
+            margin-bottom: 10px;
+            padding: 8px;
+            width: calc(100% - 18px); 
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="form-container">
             <h1>Packing Algorithm Form</h1>
-            <form method="post">
+            <form id="item-form" method="post">
                 {% csrf_token %}
-                {{ form.as_p }}
+                <label for="item-type">Select Item Type:</label>
+                <select id="item-type" name="item_type" onchange="handleSelectionChange()">
+                    <option value="single">Single Item</option>
+                    <option value="multiple">Multiple Items</option>
+                </select>
+                
+                <div id="form-content">
+                    {{ form.as_p }}
+                </div>
+
                 <button type="submit">Submit</button>
             </form>
         </div>
@@ -194,5 +117,75 @@
             {% endif %}
         </div>
     </div>
+
+    <script>
+        let originalSingleItemForm = `{{ form.as_p|safe }}`;
+    
+        function handleSelectionChange() {
+            const itemType = document.getElementById('item-type').value;
+            const formContent = document.getElementById('form-content');
+    
+            if (itemType === 'multiple') {
+                formContent.innerHTML = `
+                    <h2>Multiple Items Form</h2>
+                    <div id="items-container">
+                        <!-- Items will be dynamically added here -->
+                    </div>
+                    <input type="hidden" name="items_data" id="items_data">
+                    <button type="button" onclick="addItemField()">Add Item</button>
+                `;
+                addItemField(); 
+            } else {
+                formContent.innerHTML = originalSingleItemForm; 
+            }
+        }
+
+        function addItemField() {
+            const container = document.getElementById('items-container');
+            const itemCount = container.children.length + 1;
+            
+            const itemDiv = document.createElement('div');
+            itemDiv.innerHTML = `
+                <h3>Item ${itemCount}</h3>
+                <label for="length_${itemCount}">Length:</label>
+                <input type="number" id="length_${itemCount}" name="length_${itemCount}" step="any" required>
+                <label for="breadth_${itemCount}">Breadth:</label>
+                <input type="number" id="breadth_${itemCount}" name="breadth_${itemCount}" step="any" required>
+                <label for="height_${itemCount}">Height:</label>
+                <input type="number" id="height_${itemCount}" name="height_${itemCount}" step="any" required>
+                <label for="quantity_${itemCount}">Quantity:</label>
+                <input type="number" id="quantity_${itemCount}" name="quantity_${itemCount}" min="1" step="1" required>
+                <label for="weight_${itemCount}">Weight:</label>
+                <input type="number" id="weight_${itemCount}" name="weight_${itemCount}" step="any" required>
+                <br>
+            `;
+            container.appendChild(itemDiv);
+        }
+
+        document.getElementById('item-form').addEventListener('submit', function(event) {
+            const itemType = document.getElementById('item-type').value;
+            if (itemType === 'multiple') {
+                event.preventDefault();
+                let itemsData = [];
+                document.querySelectorAll('#items-container > div').forEach(itemDiv => {
+                    const length = itemDiv.querySelector('input[name^="length_"]').value;
+                    const breadth = itemDiv.querySelector('input[name^="breadth_"]').value;
+                    const height = itemDiv.querySelector('input[name^="height_"]').value;
+                    const quantity = itemDiv.querySelector('input[name^="quantity_"]').value;
+                    const weight = itemDiv.querySelector('input[name^="weight_"]').value;
+                    
+                    itemsData.push({
+                        length: parseFloat(length),
+                        breadth: parseFloat(breadth),
+                        height: parseFloat(height),
+                        quantity: parseInt(quantity),
+                        weight: parseFloat(weight)
+                    });
+                });
+                document.getElementById('items_data').value = JSON.stringify(itemsData);
+                this.submit(); // Submit the form
+            }
+        });
+    </script>
 </body>
 </html>

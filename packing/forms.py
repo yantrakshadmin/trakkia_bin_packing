@@ -13,13 +13,12 @@ CONTAINER_TRUCK_CHOICES = [
     ("32_ft_mxl_HQ", "32 ft MXL HQ"),
 ]
 
-class ItemForm(forms.Form):
+class SingleItemForm(forms.Form):
     truck_type = forms.ChoiceField(choices=CONTAINER_TRUCK_CHOICES, label="Truck Type")
-    length = forms.FloatField(label="Item Length (mm)")
-    breadth = forms.FloatField(label="Item Breadth (mm)")
-    height = forms.FloatField(label="Item Height (mm)")
-    weight = forms.FloatField(label="Weight per Item (kg)")
-    padding = forms.FloatField(label="Padding between Items (mm)", initial=0)
+    length = forms.FloatField(required=False)
+    breadth = forms.FloatField(required=False)
+    height = forms.FloatField(required=False)
+    weight = forms.FloatField(required=False)
     orientations = forms.MultipleChoiceField(
         choices=[
             ("L_B_H", "L_B_H"),
@@ -33,3 +32,11 @@ class ItemForm(forms.Form):
         label="Allowed Orientations",
         initial=["L_B_H"],
     )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        return cleaned_data
+
+
+class MultipleItemsForm(forms.Form):
+    pass
