@@ -3,6 +3,7 @@ from io import BytesIO
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import numpy as np
+import itertools
 
 def plot_items_in_box(L_box, B_box, H_box, L_item, B_item, H_item, weight_per_item, padding, user_orientations, max_weight=None):
     def can_place_item(x_start, y_start, z_start, dim, occupied_spaces):
@@ -177,19 +178,6 @@ def get_box_dimensions(box_key):
     return CONTAINER_TRUCK_DIMENSIONS.get(box_key)
 
 
-
-
-
-import itertools
-import matplotlib.pyplot as plt
-import numpy as np
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-
-import itertools
-import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-
 class Box:
     def __init__(self, length, width, height, max_weight):
         self.length = length
@@ -215,40 +203,43 @@ def can_fit(box, items):
     current_x = 0
     current_y = 0
     current_z = 0
+    max_x = box.length
+    max_y = box.width
+    max_z = box.height
 
-    for item in items:
-        for _ in range(item.quantity):
-            item_fits = False
-            orientations_list = list(itertools.permutations([item.length, item.width, item.height]))
+    sorted_items = sorted(items, key=lambda x: x.volume, reverse=True)
 
-            for orient in orientations_list:
-                if orient[0] <= box.length and orient[1] <= box.width and orient[2] <= box.height:
-                    if current_x + orient[0] <= box.length:
-                        total_volume += orient[0] * orient[1] * orient[2]
-                        total_weight += item.weight
-                        positions.append((current_x, current_y, current_z))
-                        orientations.append(orient)
-                        current_x += orient[0]
+    for item in sorted_items:
+        orientations_list = list(itertools.permutations([item.length, item.width, item.height]))
 
-                    elif current_y + orient[1] <= box.width:
+        for orient in orientations_list:
+            fit_possible = (orient[0] <= max_x - current_x and
+                            orient[1] <= max_y - current_y and
+                            orient[2] <= max_z - current_z)
+
+            if fit_possible:
+                for _ in range(item.quantity):
+                    if (current_x + orient[0] > max_x):
                         current_x = 0
                         current_y += orient[1]
-
-                    elif current_z + orient[2] <= box.height:
-                        current_x = 0
+                    if (current_y + orient[1] > max_y):
                         current_y = 0
                         current_z += orient[2]
 
-                    else:
+                    if current_z + orient[2] > max_z:
                         return False, 0, 0, [], []
 
-                    item_fits = True
-                    break
+                    total_volume += orient[0] * orient[1] * orient[2]
+                    total_weight += item.weight
+                    positions.append((current_x, current_y, current_z))
+                    orientations.append(orient)
+                    current_x += orient[0]
 
-            if not item_fits:
-                return False, 0, 0, [], []
+                break
+        else:
+            return False, 0, 0, [], []
 
-    if total_weight > box.max_weight:
+    if total_weight > box.max_weight or total_volume > box.volume:
         return False, 0, 0, [], []
 
     return True, total_volume, total_weight, positions, orientations
@@ -261,7 +252,6 @@ def find_best_box(item_list, available_boxes):
 
     for box_key, box_dimensions in available_boxes.items():
         box = Box(box_dimensions['length'], box_dimensions['width'], box_dimensions['height'], box_dimensions['max_weight'])
-
         fits, total_volume, total_weight, positions, orientations = can_fit(box, item_list)
 
         if fits:
@@ -276,7 +266,8 @@ def find_best_box(item_list, available_boxes):
 
     return best_box, best_fit_score, best_positions, best_orientations
 
-def plot_cuboid(ax, position, dimensions, color, alpha=1.0):
+
+def plot_cuboid(ax, position, dimensions, color, alpha=0.5):
     x, y, z = position
     dx, dy, dz = dimensions
 
@@ -298,12 +289,18 @@ def visualize_packing(box, item_list, positions, orientations):
 
     plot_cuboid(ax, (0, 0, 0), (box.length, box.width, box.height), color='grey', alpha=0.1)
 
-    colors = ['green', 'orange', 'purple', 'cyan', 'pink', 'yellow']
+    unique_dimensions = list(set((item.length, item.width, item.height) for item in item_list))
+    colors = plt.cm.get_cmap('tab10', len(unique_dimensions)).colors
+    dimension_to_color = {dim: colors[i] for i, dim in enumerate(unique_dimensions)}
 
-    for i, pos in enumerate(positions):
-        orient = orientations[i]
-        color = colors[i % len(colors)]
-        plot_cuboid(ax, pos, orient, color, alpha=1.0)
+    block_counter = 0
+
+    for i, item in enumerate(item_list):
+        original_dimensions = (item.length, item.width, item.height)
+        for j in range(item.quantity):
+            if block_counter < len(positions):
+                plot_cuboid(ax, positions[block_counter], orientations[block_counter], dimension_to_color[original_dimensions], alpha=0.5)
+                block_counter += 1
 
     ax.set_xlim([0, box.length])
     ax.set_ylim([0, box.width])
@@ -313,4 +310,11 @@ def visualize_packing(box, item_list, positions, orientations):
     ax.set_zlabel('Height')
     ax.set_title(f'Packing Visualization: Box {box.length}x{box.width}x{box.height}')
 
-    plt.show()
+
+    buffer = BytesIO()
+    plt.savefig(buffer, format='png')
+    buffer.seek(0)
+    img_str = base64.b64encode(buffer.read()).decode('utf-8')
+    plt.close(fig)
+
+    return img_str

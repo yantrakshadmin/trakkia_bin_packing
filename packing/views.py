@@ -11,15 +11,19 @@ from matplotlib import pyplot as plt
 from .forms import SingleItemForm, MultipleItemsForm
 from .plot_algo import Item, Box, find_best_box, plot_items_in_box, get_box_dimensions, visualize_packing
 
+
 def pack_items_view(request):
     context = {}
 
-    if request.method == 'POST':
-        item_type = request.POST.get('item_type', 'single')
+    # Check if an item type is selected, otherwise default to 'single'
+    item_type = request.POST.get('item_type', 'single')
+    context['selected_item_type'] = item_type
 
+    if request.method == 'POST':
         if item_type == 'single':
             form = SingleItemForm(request.POST)
             if form.is_valid():
+                # Process the single item form data
                 L_item = form.cleaned_data['length']
                 B_item = form.cleaned_data['breadth']
                 H_item = form.cleaned_data['height']
@@ -67,8 +71,8 @@ def pack_items_view(request):
                             default_storage.delete(image_path_to_delete)
                             del request.session['image_to_delete']
                             del request.session['image_created_at']            
-                
-            return render(request, 'packing/packing_form.html', context)
+
+            context['form'] = form
 
         elif item_type == 'multiple':
             form = MultipleItemsForm(request.POST)
@@ -100,26 +104,32 @@ def pack_items_view(request):
 
                     if best_box_key:
                         best_box = Box(**available_boxes[best_box_key])
-                        print(f"Best box: {best_box_key} with {best_fit_score} leftover volume")
                         fig, ax = plt.subplots(subplot_kw={'projection': '3d'})
-                        visualize_packing(best_box, item_objects, best_positions, best_orientations)
-                        plt.close(fig)
+                        img_str = visualize_packing(best_box, item_objects, best_positions, best_orientations)
 
-                        image_path = f'{best_box_key}_plot.png'
-                        image_file = ContentFile(fig.savefig(image_path, format='png'))
-                        image_url = default_storage.save(f'plots/{image_path}', image_file)
-                        image_url = f"{settings.MEDIA_URL}{image_url}"
+                        image_file = ContentFile(base64.b64decode(img_str), name=f'{best_box_key}_plot.png')
+                        image_path = default_storage.save(f'plots/{best_box_key}_plot.png', image_file)
+                        image_url = f"{settings.MEDIA_URL}{image_path}"
 
                         context.update({
                             'best_box': best_box_key,
                             'image_path': image_url,
                         })
 
-                return render(request, 'packing/packing_form.html', context)
+                        if 'image_to_delete' in request.session and 'image_created_at' in request.session:
+                            current_time = int(time.time())
+                            image_created_at = request.session['image_created_at']
+                            if current_time - image_created_at > 300:
+                                image_path_to_delete = request.session['image_to_delete']
+                                if default_storage.exists(image_path_to_delete):
+                                    default_storage.delete(image_path_to_delete)
+                                    del request.session['image_to_delete']
+                                    del request.session['image_created_at'] 
+
+            context['form'] = form
 
     else:
-        form = SingleItemForm()
+        context['selected_item_type'] = 'single'
+        context['form'] = SingleItemForm()
 
-    context['form'] = form
     return render(request, 'packing/packing_form.html', context)
-

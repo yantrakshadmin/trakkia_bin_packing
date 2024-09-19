@@ -100,6 +100,10 @@
         </div>
         <div class="result-container">
             <h1>Results</h1>
+            <h1>{{best_box}}</h1>
+            
+
+
             {% if total_items is not None %}
                 <p>Total items placed: {{ total_items }}</p>
                 <p>Total weight of items placed: {{ total_weight }} kg</p>
@@ -115,6 +119,15 @@
                     <img src="{{ image_path }}" alt="Packing Visualization">
                 </div>
             {% endif %}
+
+            {% if best_box is not None %}
+                    <p>Best truck: {{ best_box }}</p>
+                    <div class="image-container">
+                        <img src="{{ image_path }}" alt="Packing Visualization">
+                    </div>
+            {% endif %}
+
+
         </div>
     </div>
 
@@ -183,7 +196,7 @@
                     });
                 });
                 document.getElementById('items_data').value = JSON.stringify(itemsData);
-                this.submit(); // Submit the form
+                this.submit();
             }
         });
     </script>
