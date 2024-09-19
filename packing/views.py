@@ -1,106 +1,135 @@
-import base64
-from io import BytesIO
-import time
-
 from django.shortcuts import render
-from matplotlib import pyplot as plt
-from packing.forms import ItemForm
-from packing.plot_algo import get_box_dimensions, plot_items_in_box
-from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.conf import settings
+import base64
+import time
+import json
 
+from matplotlib import pyplot as plt
 
-# def pack_items_view(request):
-#     if request.method == 'POST':
-#         form = ItemForm(request.POST)
-#         if form.is_valid():
-#             L_item = form.cleaned_data['length']
-#             B_item = form.cleaned_data['breadth']
-#             H_item = form.cleaned_data['height']
-#             box_key = form.cleaned_data['truck_type']
-#             padding = form.cleaned_data['padding']
-#             weight_per_item = form.cleaned_data['weight']
-#             user_orientations = form.cleaned_data['orientations']
+from .forms import SingleItemForm, MultipleItemsForm
+from .plot_algo import Item, Box, find_best_box, plot_items_in_box, get_box_dimensions, visualize_packing
 
-#             box_dimensions = get_box_dimensions(box_key)
-#             L_box = box_dimensions['L_box']
-#             B_box = box_dimensions['B_box']
-#             H_box = box_dimensions['H_box']
-#             max_weight = box_dimensions['max_weight']
-
-#             image_path, total_items, total_weight, total_volume, orientation_count = plot_items_in_box(L_box, B_box, H_box, L_item, B_item, H_item, weight_per_item=weight_per_item, padding=padding, user_orientations=user_orientations, max_weight=max_weight)
-
-#             image_file = ContentFile(base64.b64decode(image_path), name=f'{box_key}_plot.png')
-#             image_path = default_storage.save(f'plots/{box_key}_plot.png', image_file)
-#             image_url = f"{settings.MEDIA_URL}{image_path}"
-            
-#             context = {
-#                 'total_items': total_items,
-#                 'orientation_count': orientation_count,
-#                 'total_weight': round(total_weight, 2),
-#                 'total_volume': round(total_volume/1000, 2),
-#                 'image_path': image_url,
-#             }
-#             return render(request, 'packing/result.html', context)
-#     else:
-#         form = ItemForm()
-
-#     return render(request, 'packing/packing_form.html', {'form': form})
 
 def pack_items_view(request):
-    form = ItemForm(request.POST or None)
     context = {}
 
-    if request.method == 'POST' and form.is_valid():
-        L_item = form.cleaned_data['length']
-        B_item = form.cleaned_data['breadth']
-        H_item = form.cleaned_data['height']
-        box_key = form.cleaned_data['truck_type']
-        padding = form.cleaned_data['padding']
-        weight_per_item = form.cleaned_data['weight']
-        user_orientations = form.cleaned_data['orientations']
+    # Check if an item type is selected, otherwise default to 'single'
+    item_type = request.POST.get('item_type', 'single')
+    context['selected_item_type'] = item_type
 
-        box_dimensions = get_box_dimensions(box_key)
-        L_box = box_dimensions['L_box']
-        B_box = box_dimensions['B_box']
-        H_box = box_dimensions['H_box']
-        max_weight = box_dimensions['max_weight']
+    if request.method == 'POST':
+        if item_type == 'single':
+            form = SingleItemForm(request.POST)
+            if form.is_valid():
+                # Process the single item form data
+                L_item = form.cleaned_data['length']
+                B_item = form.cleaned_data['breadth']
+                H_item = form.cleaned_data['height']
+                box_key = form.cleaned_data['truck_type']
+                padding = 0
+                weight_per_item = form.cleaned_data['weight']
+                user_orientations = form.cleaned_data['orientations']
 
-        image_path, total_items, total_weight, total_volume, orientation_count = plot_items_in_box(
-            L_box, B_box, H_box, L_item, B_item, H_item,
-            weight_per_item=weight_per_item,
-            padding=padding,
-            user_orientations=user_orientations,
-            max_weight=max_weight
-        )
+                box_dimensions = get_box_dimensions(box_key)
+                L_box = box_dimensions['L_box']
+                B_box = box_dimensions['B_box']
+                H_box = box_dimensions['H_box']
+                max_weight = box_dimensions['max_weight']
 
-        timestamp = int(time.time())
-        image_file = ContentFile(base64.b64decode(image_path), name=f'{box_key}_plot.png')
-        image_path = default_storage.save(f'plots/{box_key}_plot.png', image_file)
-        image_url = f"{settings.MEDIA_URL}{image_path}"
+                image_path, total_items, total_weight, total_volume, orientation_count = plot_items_in_box(
+                    L_box, B_box, H_box, L_item, B_item, H_item,
+                    weight_per_item=weight_per_item,
+                    padding=padding,
+                    user_orientations=user_orientations,
+                    max_weight=max_weight
+                )
 
-        request.session['image_to_delete'] = image_path
-        request.session['image_created_at'] = timestamp
+                timestamp = int(time.time())
+                image_file = ContentFile(base64.b64decode(image_path), name=f'{box_key}_plot.png')
+                image_path = default_storage.save(f'plots/{box_key}_plot.png', image_file)
+                image_url = f"{settings.MEDIA_URL}{image_path}"
 
-        context.update({
-            'total_items': total_items,
-            'orientation_count': orientation_count,
-            'total_weight': round(total_weight, 2),
-            'total_volume': round(total_volume / 1000, 2),
-            'image_path': image_url,
-        })
+                request.session['image_to_delete'] = image_path
+                request.session['image_created_at'] = timestamp
 
-        if 'image_to_delete' in request.session and 'image_created_at' in request.session:
-            current_time = int(time.time())
-            image_created_at = request.session['image_created_at']
-            if current_time - image_created_at > 300:
-                image_path_to_delete = request.session['image_to_delete']
-                if default_storage.exists(image_path_to_delete):
-                    default_storage.delete(image_path_to_delete)
-                    del request.session['image_to_delete']
-                    del request.session['image_created_at']
+                context.update({
+                    'total_items': total_items,
+                    'orientation_count': orientation_count,
+                    'total_weight': round(total_weight, 2),
+                    'total_volume': round(total_volume / 1000, 2),
+                    'image_path': image_url,
+                })
 
+                if 'image_to_delete' in request.session and 'image_created_at' in request.session:
+                    current_time = int(time.time())
+                    image_created_at = request.session['image_created_at']
+                    if current_time - image_created_at > 300:
+                        image_path_to_delete = request.session['image_to_delete']
+                        if default_storage.exists(image_path_to_delete):
+                            default_storage.delete(image_path_to_delete)
+                            del request.session['image_to_delete']
+                            del request.session['image_created_at']            
 
-    context['form'] = form
+            context['form'] = form
+
+        elif item_type == 'multiple':
+            form = MultipleItemsForm(request.POST)
+            if form.is_valid():
+                items_data = request.POST.get('items_data')
+                if items_data:
+                    items = json.loads(items_data)
+                    item_objects = [Item(
+                        length=item['length'],
+                        width=item['breadth'],
+                        height=item['height'],
+                        quantity=item['quantity'],
+                        weight=item['weight']
+                    ) for item in items]
+
+                    available_boxes = {
+                        "Tempo_407": {"length": 2896, "width": 1676, "height": 1676, "max_weight": 2500},
+                        "13_Feet": {"length": 3962, "width": 1676, "height": 2134, "max_weight": 3500},
+                        "14_Feet": {"length": 4267, "width": 1829, "height": 1829, "max_weight": 4000},
+                        "17_Feet": {"length": 5182, "width": 1829, "height": 2134, "max_weight": 6000},
+                        "20_ft_sxl": {"length": 6096, "width": 2438, "height": 2438, "max_weight": 7000},
+                        "24_ft_sxl": {"length": 7315, "width": 2438, "height": 2438, "max_weight": 7000},
+                        "32_ft_sxl": {"length": 9754, "width": 2438, "height": 2438, "max_weight": 7000},
+                        "32_ft_sxl_HQ": {"length": 9754, "width": 2743, "height": 2896, "max_weight": 7000},
+                        "32_ft_mxl": {"length": 9754, "width": 2438, "height": 2438, "max_weight": 15000},
+                        "32_ft_mxl_HQ": {"length": 9754, "width": 2743, "height": 2896, "max_weight": 14000},
+                    }
+                    best_box_key, best_fit_score, best_positions, best_orientations = find_best_box(item_objects, available_boxes)
+
+                    if best_box_key:
+                        best_box = Box(**available_boxes[best_box_key])
+                        fig, ax = plt.subplots(subplot_kw={'projection': '3d'})
+                        img_str = visualize_packing(best_box, item_objects, best_positions, best_orientations)
+
+                        image_file = ContentFile(base64.b64decode(img_str), name=f'{best_box_key}_plot.png')
+                        image_path = default_storage.save(f'plots/{best_box_key}_plot.png', image_file)
+                        image_url = f"{settings.MEDIA_URL}{image_path}"
+
+                        context.update({
+                            'best_box': best_box_key,
+                            'image_path': image_url,
+                        })
+
+                        if 'image_to_delete' in request.session and 'image_created_at' in request.session:
+                            current_time = int(time.time())
+                            image_created_at = request.session['image_created_at']
+                            if current_time - image_created_at > 300:
+                                image_path_to_delete = request.session['image_to_delete']
+                                if default_storage.exists(image_path_to_delete):
+                                    default_storage.delete(image_path_to_delete)
+                                    del request.session['image_to_delete']
+                                    del request.session['image_created_at'] 
+
+            context['form'] = form
+
+    else:
+        context['selected_item_type'] = 'single'
+        context['form'] = SingleItemForm()
+
     return render(request, 'packing/packing_form.html', context)
