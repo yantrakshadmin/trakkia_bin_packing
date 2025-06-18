@@ -1,135 +1,116 @@
 from django.shortcuts import render
+from rest_framework import status
+from django.utils.timezone import now
+from rest_framework.response import Response
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.conf import settings
 import base64
 import time
 import json
-
+from django.http import HttpResponse
+from rest_framework.views import APIView
+import uuid
 from matplotlib import pyplot as plt
+from packing.utils import calculate_dummy_height, calculate_matrix_details, calculate_volume_used_percentage, convert_to_kg, convert_to_mm, plot_items_in_box_version1, get_box_dimensions
 
-from .forms import SingleItemForm, MultipleItemsForm
-from .plot_algo import Item, Box, find_best_box, plot_items_in_box, get_box_dimensions, visualize_packing
+class PackingAPIView(APIView):
+    def post(self, request):
+        try:
+            data = request.data
 
+            required_fields = [
+                "L_item", "B_item", "H_item", "dimension_unit",
+                "weight_per_item", "weight_unit",
+                "margin", "orientations", "box_key"
+            ]
 
-def pack_items_view(request):
-    context = {}
+            #padding = 0
 
-    # Check if an item type is selected, otherwise default to 'single'
-    item_type = request.POST.get('item_type', 'single')
-    context['selected_item_type'] = item_type
+            missing = [field for field in required_fields if field not in data]
+            if missing:
+                return Response({"error": f"Missing fields: {', '.join(missing)}"}, status=status.HTTP_400_BAD_REQUEST)
 
-    if request.method == 'POST':
-        if item_type == 'single':
-            form = SingleItemForm(request.POST)
-            if form.is_valid():
-                # Process the single item form data
-                L_item = form.cleaned_data['length']
-                B_item = form.cleaned_data['breadth']
-                H_item = form.cleaned_data['height']
-                box_key = form.cleaned_data['truck_type']
-                padding = 0
-                weight_per_item = form.cleaned_data['weight']
-                user_orientations = form.cleaned_data['orientations']
+            L_item = convert_to_mm(data["L_item"], data["dimension_unit"])
+            B_item = convert_to_mm(data["B_item"], data["dimension_unit"])
+            H_item = convert_to_mm(data["H_item"], data["dimension_unit"])
+            weight = convert_to_kg(data["weight_per_item"], data["weight_unit"])
 
-                box_dimensions = get_box_dimensions(box_key)
-                L_box = box_dimensions['L_box']
-                B_box = box_dimensions['B_box']
-                H_box = box_dimensions['H_box']
-                max_weight = box_dimensions['max_weight']
+            box = get_box_dimensions(data["box_key"])
+            if not box:
+                return Response({"error": f"Invalid box_key: {data['box_key']}"}, status=status.HTTP_400_BAD_REQUEST)
 
-                image_path, total_items, total_weight, total_volume, orientation_count = plot_items_in_box(
-                    L_box, B_box, H_box, L_item, B_item, H_item,
-                    weight_per_item=weight_per_item,
-                    padding=padding,
-                    user_orientations=user_orientations,
-                    max_weight=max_weight
+            main_image, insert_images, insert_config = plot_items_in_box_version1(
+                L_box=box["L_box"],
+                B_box=box["B_box"],
+                H_box=box["H_box"],
+                L_item=L_item,
+                B_item=B_item,
+                H_item=H_item,
+                weight_per_item=weight,
+                margin=data["margin"],
+                user_orientations=data["orientations"],
+                max_weight=box.get("max_weight")
+            )
+
+            total_inserts = len(insert_config)
+            best_orientations = [insert[4] for insert in insert_config]
+            best_orientation = best_orientations[0]
+
+            matrix_details_dict = {}
+            for orientation in best_orientations:
+                matrix, remaining_length, remaining_width = calculate_matrix_details(
+                    L_insert=box["L_box"], B_insert=box["B_box"],
+                    part_length=L_item, part_width=B_item, part_height=H_item,
+                    padding=0, margin=data["margin"], orientation=orientation
                 )
+                matrix_details_dict[orientation] = matrix
+                matrix_detail_str = ", ".join(f"{k}={v}" for k, v in matrix_details_dict.items())
 
-                timestamp = int(time.time())
-                image_file = ContentFile(base64.b64decode(image_path), name=f'{box_key}_plot.png')
-                image_path = default_storage.save(f'plots/{box_key}_plot.png', image_file)
-                image_url = f"{settings.MEDIA_URL}{image_path}"
+            total_items = sum(insert[5] for insert in insert_config)
+            total_weight = total_items * weight
 
-                request.session['image_to_delete'] = image_path
-                request.session['image_created_at'] = timestamp
+            volume_used = calculate_volume_used_percentage(
+                                    data["L_item"], data["B_item"], data["H_item"], 
+                                    L_item, B_item, H_item, 
+                                    0, data["margin"], 
+                                    total_items,
+                                    orientation=best_orientation
+                                )
 
-                context.update({
-                    'total_items': total_items,
-                    'orientation_count': orientation_count,
-                    'total_weight': round(total_weight, 2),
-                    'total_volume': round(total_volume / 1000, 2),
-                    'image_path': image_url,
-                })
+            dummy_height = calculate_dummy_height(data["H_item"], L_item, B_item, H_item, data["margin"], 0, best_orientation, total_inserts)
+            dummy_space = f"{remaining_length}x{remaining_width}x{dummy_height}"
 
-                if 'image_to_delete' in request.session and 'image_created_at' in request.session:
-                    current_time = int(time.time())
-                    image_created_at = request.session['image_created_at']
-                    if current_time - image_created_at > 300:
-                        image_path_to_delete = request.session['image_to_delete']
-                        if default_storage.exists(image_path_to_delete):
-                            default_storage.delete(image_path_to_delete)
-                            del request.session['image_to_delete']
-                            del request.session['image_created_at']            
+            # unique_id = uuid.uuid4().hex
+            # timestamp = now().strftime('%Y%m%d%H%M%S')
+            # file_name = f'{timestamp}_{unique_id}.png'
+            # image_file = ContentFile(base64.b64decode(main_image), name=file_name)
+            # image_path = default_storage.save(f'plots/{file_name}', image_file)
+            # image_url = request.build_absolute_uri(f"{settings.MEDIA_URL}{image_path}")
+            image_data_uri = f"data:image/png;base64,{main_image}"
 
-            context['form'] = form
+            return Response({
+                "main_image": image_data_uri,
+                "insert_config": [
+                    {
+                        "insert_index": cfg[0],
+                        "L_insert": cfg[1],
+                        "B_insert": cfg[2],
+                        "H_insert": cfg[3],
+                        "orientation": cfg[4],
+                        "items_in_insert": cfg[5]
+                    } for cfg in insert_config
+                ],
+                "dummy_space": dummy_space,
+                "volumetric_weight": volume_used,
+                "matrix_details": matrix_detail_str,
+                "total_weight": total_weight
+            })
 
-        elif item_type == 'multiple':
-            form = MultipleItemsForm(request.POST)
-            if form.is_valid():
-                items_data = request.POST.get('items_data')
-                if items_data:
-                    items = json.loads(items_data)
-                    item_objects = [Item(
-                        length=item['length'],
-                        width=item['breadth'],
-                        height=item['height'],
-                        quantity=item['quantity'],
-                        weight=item['weight']
-                    ) for item in items]
+        except Exception as e:
+            import traceback
+            return Response(
+                {"error": str(e), "trace": traceback.format_exc()},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
-                    available_boxes = {
-                        "Tempo_407": {"length": 2896, "width": 1676, "height": 1676, "max_weight": 2500},
-                        "13_Feet": {"length": 3962, "width": 1676, "height": 2134, "max_weight": 3500},
-                        "14_Feet": {"length": 4267, "width": 1829, "height": 1829, "max_weight": 4000},
-                        "17_Feet": {"length": 5182, "width": 1829, "height": 2134, "max_weight": 6000},
-                        "20_ft_sxl": {"length": 6096, "width": 2438, "height": 2438, "max_weight": 7000},
-                        "24_ft_sxl": {"length": 7315, "width": 2438, "height": 2438, "max_weight": 7000},
-                        "32_ft_sxl": {"length": 9754, "width": 2438, "height": 2438, "max_weight": 7000},
-                        "32_ft_sxl_HQ": {"length": 9754, "width": 2743, "height": 2896, "max_weight": 7000},
-                        "32_ft_mxl": {"length": 9754, "width": 2438, "height": 2438, "max_weight": 15000},
-                        "32_ft_mxl_HQ": {"length": 9754, "width": 2743, "height": 2896, "max_weight": 14000},
-                    }
-                    best_box_key, best_fit_score, best_positions, best_orientations = find_best_box(item_objects, available_boxes)
-
-                    if best_box_key:
-                        best_box = Box(**available_boxes[best_box_key])
-                        fig, ax = plt.subplots(subplot_kw={'projection': '3d'})
-                        img_str = visualize_packing(best_box, item_objects, best_positions, best_orientations)
-
-                        image_file = ContentFile(base64.b64decode(img_str), name=f'{best_box_key}_plot.png')
-                        image_path = default_storage.save(f'plots/{best_box_key}_plot.png', image_file)
-                        image_url = f"{settings.MEDIA_URL}{image_path}"
-
-                        context.update({
-                            'best_box': best_box_key,
-                            'image_path': image_url,
-                        })
-
-                        if 'image_to_delete' in request.session and 'image_created_at' in request.session:
-                            current_time = int(time.time())
-                            image_created_at = request.session['image_created_at']
-                            if current_time - image_created_at > 300:
-                                image_path_to_delete = request.session['image_to_delete']
-                                if default_storage.exists(image_path_to_delete):
-                                    default_storage.delete(image_path_to_delete)
-                                    del request.session['image_to_delete']
-                                    del request.session['image_created_at'] 
-
-            context['form'] = form
-
-    else:
-        context['selected_item_type'] = 'single'
-        context['form'] = SingleItemForm()
-
-    return render(request, 'packing/packing_form.html', context)

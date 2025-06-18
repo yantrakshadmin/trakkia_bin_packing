@@ -1,11 +1,11 @@
 from django.urls import path
-from .views import pack_items_view
+from .views import PackingAPIView
 from django.conf import settings
 from django.conf.urls.static import static
 
 
 urlpatterns = [
-    path('', pack_items_view, name='packing_form'),
+    path('pack-items/', PackingAPIView.as_view(), name='pack-items'),
 ]
 
 if settings.DEBUG:
