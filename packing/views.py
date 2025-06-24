@@ -11,6 +11,8 @@ import json
 from django.http import HttpResponse
 from rest_framework.views import APIView
 import uuid
+import matplotlib
+matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 from packing.utils import calculate_dummy_height, calculate_matrix_details, calculate_volume_used_percentage, convert_to_kg, convert_to_mm, plot_items_in_box_version1, get_box_dimensions
 
@@ -52,6 +54,9 @@ class PackingAPIView(APIView):
                 user_orientations=data["orientations"],
                 max_weight=box.get("max_weight")
             )
+
+            print(insert_config, "insert config")
+
 
             total_inserts = len(insert_config)
             best_orientations = [insert[4] for insert in insert_config]

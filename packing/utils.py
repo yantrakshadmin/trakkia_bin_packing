@@ -1,6 +1,8 @@
 import base64
 from io import BytesIO
 import logging
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import numpy as np
@@ -8,16 +10,17 @@ import requests
 import itertools
 
 BOX_DIMENSIONS = {
+    "Pickup": {"L_box": 2740, "B_box": 1676, "H_box": 1828, "max_weight": 1000},
     "Tempo_407": {"L_box": 2896, "B_box": 1676, "H_box": 1676, "max_weight": 2500},
     "13_Feet": {"L_box": 3962, "B_box": 1676, "H_box": 2134, "max_weight": 3500},
     "14_Feet": {"L_box": 4267, "B_box": 1829, "H_box": 1829, "max_weight": 4000},
     "17_Feet": {"L_box": 5182, "B_box": 1829, "H_box": 2134, "max_weight": 6000},
     "20_ft_sxl": {"L_box": 6096, "B_box": 2438, "H_box": 2438, "max_weight": 7000},
     "24_ft_sxl": {"L_box": 7315, "B_box": 2438, "H_box": 2438, "max_weight": 7000},
-    "32_ft_sxl": {"L_box": 9754, "B_box": 2438, "H_box": 2438, "max_weight": 7000},
-    "32_ft_sxl_HQ": {"L_box": 9754, "B_box": 2743, "H_box": 2896, "max_weight": 7000},
-    "32_ft_mxl": {"L_box": 9754, "B_box": 2438, "H_box": 2438, "max_weight": 15000},
-    "32_ft_mxl_HQ": {"L_box": 9754, "B_box": 2743, "H_box": 2896, "max_weight": 14000},
+    "32_ft_sxl": {"L_box": 9754, "B_box": 2438, "H_box": 2438, "max_weight": 8000},
+    "32_ft_sxl_HQ": {"L_box": 9754, "B_box": 2529, "H_box": 3048, "max_weight": 8000},
+    "32_ft_mxl": {"L_box": 9754, "B_box": 2438, "H_box": 2438, "max_weight": 16000},
+    "32_ft_mxl_HQ": {"L_box": 9754, "B_box": 2529, "H_box": 3048, "max_weight": 16000},
     "PLS12801": {"L_box": 1150, "B_box": 750, "H_box": 790, "max_weight": 600},
     "PLS12802": {"L_box": 1150, "B_box": 750, "H_box": 490, "max_weight": 600},
     "FLC": {"L_box": 1100, "B_box": 900, "H_box": 760, "max_weight": 800},
@@ -251,7 +254,7 @@ def plot_items_in_box_version1(L_box, B_box, H_box, L_item, B_item, H_item, weig
             buffer2.seek(0)
             insert_img_str = base64.b64encode(buffer2.read()).decode('utf-8')
             plt.close()
-            insert_images.append((orientation, insert_img_str))
+            insert_images.append((orientation,  insert_img_str))
     else:
         insert_images = []
     
