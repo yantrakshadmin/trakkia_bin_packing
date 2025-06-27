@@ -41,21 +41,35 @@ class PackingAPIView(APIView):
             H_item = convert_to_mm(data["H_item"], data["dimension_unit"])
             weight = convert_to_kg(data["weight_per_item"], data["weight_unit"])
 
-            box = get_box_dimensions(data["box_key"])
-            if not box:
-                return Response({"error": f"Invalid box_key: {data['box_key']}"}, status=status.HTTP_400_BAD_REQUEST)
+            if data["box_key"] == "Others":
+                try:
+                    L_box = data["L_box"]
+                    B_box = data["B_box"]
+                    H_box = data["H_box"]
+                    max_weight = data["max_weight"]
+                except KeyError as e:
+                    return Response({"error": f"Missing dimension in payload: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+                
+            else:
+                box = get_box_dimensions(data["box_key"])
+                if not box:
+                    return Response({"error": f"Invalid box_key: {data['box_key']}"}, status=status.HTTP_400_BAD_REQUEST)
+                L_box = box["L_box"]
+                B_box = box["B_box"]
+                H_box = box["H_box"]
+                max_weight = box.get("max_weight")
 
             main_image, insert_images, insert_config = plot_items_in_box_version1(
-                L_box=box["L_box"],
-                B_box=box["B_box"],
-                H_box=box["H_box"],
+                L_box=L_box,
+                B_box=B_box,
+                H_box=H_box,
                 L_item=L_item,
                 B_item=B_item,
                 H_item=H_item,
                 weight_per_item=weight,
                 margin=data["margin"],
                 user_orientations=data["orientations"],
-                max_weight=box.get("max_weight")
+                max_weight=max_weight
             )
 
             print(insert_config, "insert config")
@@ -68,7 +82,7 @@ class PackingAPIView(APIView):
             matrix_details_dict = {}
             for orientation in best_orientations:
                 matrix, remaining_length, remaining_width = calculate_matrix_details(
-                    L_insert=box["L_box"], B_insert=box["B_box"],
+                    L_insert=L_box, B_insert=B_box,
                     part_length=L_item, part_width=B_item, part_height=H_item,
                     padding=0, margin=data["margin"], orientation=orientation
                 )
