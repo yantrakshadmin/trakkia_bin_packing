@@ -16,6 +16,9 @@ matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 from packing.utils import calculate_dummy_height, calculate_matrix_details, calculate_volume_used_percentage, convert_to_kg, convert_to_mm, plot_items_in_box_version1, get_box_dimensions
 
+def home(request):
+    return render(request, 'packing/home.html', {'data': 'Hello, world!'})
+
 class PackingAPIView(APIView):
     def post(self, request):
         try:
