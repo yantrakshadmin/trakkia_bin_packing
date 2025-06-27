@@ -3,7 +3,7 @@ Django==3.0.5
 django-cors-headers==3.2.1
 djangorestframework==3.11.0
 djangorestframework-jwt==1.11.0
-djangorestframework-simplejwt==4.4.0
+djangorestframework-simplejwt==4.5.0
 PyJWT==1.7.1
 pytz==2020.1
 sqlparse==0.3.1
@@ -25,7 +25,7 @@ django-simple-search==1.0.2
 gmplot==1.4.1
 awscrt==0.16.10
 awsiotsdk==1.12.5
-psycopg2-binary==2.8.6
+psycopg2-binary==2.9.9
 django-dia
 reportlab==4.0.4
 django-jsonfield
