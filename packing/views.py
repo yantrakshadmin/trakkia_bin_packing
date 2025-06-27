@@ -67,7 +67,7 @@ class PackingAPIView(APIView):
                 B_item=B_item,
                 H_item=H_item,
                 weight_per_item=weight,
-                margin=data["margin"],
+                margin=data.get("margin", 0),
                 user_orientations=data["orientations"],
                 max_weight=max_weight
             )
@@ -84,7 +84,7 @@ class PackingAPIView(APIView):
                 matrix, remaining_length, remaining_width = calculate_matrix_details(
                     L_insert=L_box, B_insert=B_box,
                     part_length=L_item, part_width=B_item, part_height=H_item,
-                    padding=0, margin=data["margin"], orientation=orientation
+                    padding=0, margin=data.get("margin", 0), orientation=orientation
                 )
                 matrix_details_dict[orientation] = matrix
                 matrix_detail_str = ", ".join(f"{k}={v}" for k, v in matrix_details_dict.items())
@@ -92,16 +92,18 @@ class PackingAPIView(APIView):
             total_items = sum(insert[5] for insert in insert_config)
             total_weight = total_items * weight
 
-            volume_used = calculate_volume_used_percentage(
+            volume_used, total_volume = calculate_volume_used_percentage(
                                     data["L_item"], data["B_item"], data["H_item"], 
                                     L_item, B_item, H_item, 
-                                    0, data["margin"], 
+                                    0, data.get("margin", 0), 
                                     total_items,
                                     orientation=best_orientation
                                 )
 
-            dummy_height = calculate_dummy_height(data["H_item"], L_item, B_item, H_item, data["margin"], 0, best_orientation, total_inserts)
+            dummy_height = calculate_dummy_height(data["H_item"], L_item, B_item, H_item, data.get("margin", 0), 0, best_orientation, total_inserts)
             dummy_space = f"{remaining_length}x{remaining_width}x{dummy_height}"
+            # items_volume = L_item * B_item * H_item
+            loaded_volume = L_box * B_box * H_box
 
             # unique_id = uuid.uuid4().hex
             # timestamp = now().strftime('%Y%m%d%H%M%S')
@@ -126,7 +128,11 @@ class PackingAPIView(APIView):
                 "dummy_space": dummy_space,
                 "volumetric_weight": volume_used,
                 "matrix_details": matrix_detail_str,
-                "total_weight": total_weight
+                "total_weight": total_weight,
+                "items_volume": total_volume,
+                "loaded_volume": loaded_volume,
+                "loaded_weight": max_weight,
+                "total_items": total_items
             })
 
         except Exception as e:

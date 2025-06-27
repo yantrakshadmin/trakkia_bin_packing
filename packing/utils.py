@@ -342,7 +342,7 @@ def calculate_volume_used_percentage(L_box, B_box, H_box, L_item, B_item, H_item
     else:
         volume_used_percentage = 0
 
-    return round(volume_used_percentage, 2)
+    return round(volume_used_percentage, 2), total_item_volume
 
 
 def calculate_dummy_height(H_box, L_item, B_item, H_item, margin, padding, best_orientation, total_inserts):
