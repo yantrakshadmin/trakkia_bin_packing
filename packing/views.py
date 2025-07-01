@@ -27,7 +27,7 @@ class PackingAPIView(APIView):
             required_fields = [
                 "L_item", "B_item", "H_item", "dimension_unit",
                 "weight_per_item", "weight_unit",
-                "margin", "orientations", "box_key"
+                "orientations", "box_key"
             ]
 
             #padding = 0
@@ -40,13 +40,16 @@ class PackingAPIView(APIView):
             B_item = convert_to_mm(data["B_item"], data["length_unit"])
             H_item = convert_to_mm(data["H_item"], data["length_unit"])
             weight = convert_to_kg(data["weight_per_item"], data["weight_unit"])
+            raw_margin = data["margin"]
+            margin_value = 0 if raw_margin is None else raw_margin
+            margin = convert_to_mm(margin_value, data["length_unit"])
 
             if data["box_key"] == "Others":
                 try:
-                    L_box = data["L_box"]
-                    B_box = data["B_box"]
-                    H_box = data["H_box"]
-                    max_weight = data["max_weight"]
+                    L_box = convert_to_mm(data["L_box"], data["dimension_unit"])
+                    B_box = convert_to_mm(data["B_box"], data["dimension_unit"])
+                    H_box = convert_to_mm(data["H_box"], data["dimension_unit"])
+                    max_weight = convert_to_kg(data["max_weight"], data["max_weight_unit"])
                 except KeyError as e:
                     return Response({"error": f"Missing dimension in payload: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
                 
@@ -67,7 +70,7 @@ class PackingAPIView(APIView):
                 B_item=B_item,
                 H_item=H_item,
                 weight_per_item=weight,
-                margin=data.get("margin", 0),
+                margin=margin,
                 user_orientations=data["orientations"],
                 max_weight=max_weight
             )
@@ -84,7 +87,7 @@ class PackingAPIView(APIView):
                 matrix, remaining_length, remaining_width = calculate_matrix_details(
                     L_insert=L_box, B_insert=B_box,
                     part_length=L_item, part_width=B_item, part_height=H_item,
-                    padding=0, margin=data.get("margin", 0), orientation=orientation
+                    padding=0, margin=margin, orientation=orientation
                 )
                 matrix_details_dict[orientation] = matrix
                 matrix_detail_str = ", ".join(f"{k}={v}" for k, v in matrix_details_dict.items())
@@ -93,17 +96,18 @@ class PackingAPIView(APIView):
             total_weight = total_items * weight
 
             volume_used, total_volume = calculate_volume_used_percentage(
-                                    data["L_item"], data["B_item"], data["H_item"], 
+                                    L_box, B_box, H_box, 
                                     L_item, B_item, H_item, 
-                                    0, data.get("margin", 0), 
+                                    0, margin, 
                                     total_items,
                                     orientation=best_orientation
                                 )
 
-            dummy_height = calculate_dummy_height(data["H_item"], L_item, B_item, H_item, data.get("margin", 0), 0, best_orientation, total_inserts)
+            dummy_height = calculate_dummy_height(data["H_item"], L_item, B_item, H_item, margin, 0, best_orientation, total_inserts)
             dummy_space = f"{remaining_length}x{remaining_width}x{dummy_height}"
             # items_volume = L_item * B_item * H_item
             loaded_volume = L_box * B_box * H_box
+            loaded_weight_percentage = (total_weight/max_weight)*100
 
             # unique_id = uuid.uuid4().hex
             # timestamp = now().strftime('%Y%m%d%H%M%S')
@@ -129,11 +133,12 @@ class PackingAPIView(APIView):
                 "volumetric_weight": volume_used,
                 "matrix_details": matrix_detail_str,
                 "total_weight": total_weight,
-                "items_volume": total_volume,
-                "loaded_volume": loaded_volume,
+                "items_volume": round(total_volume/1000000000, 2),
+                "loaded_volume": round(loaded_volume/1000000000, 2),
                 "loaded_weight": max_weight,
                 "total_items": total_items,
-                "solution": data["box_key"]
+                "solution": data["box_key"],
+                "loaded_weight_percentage": round(loaded_weight_percentage, 2)
             })
 
         except Exception as e:
