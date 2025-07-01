@@ -36,9 +36,9 @@ class PackingAPIView(APIView):
             if missing:
                 return Response({"error": f"Missing fields: {', '.join(missing)}"}, status=status.HTTP_400_BAD_REQUEST)
 
-            L_item = convert_to_mm(data["L_item"], data["dimension_unit"])
-            B_item = convert_to_mm(data["B_item"], data["dimension_unit"])
-            H_item = convert_to_mm(data["H_item"], data["dimension_unit"])
+            L_item = convert_to_mm(data["L_item"], data["length_unit"])
+            B_item = convert_to_mm(data["B_item"], data["length_unit"])
+            H_item = convert_to_mm(data["H_item"], data["length_unit"])
             weight = convert_to_kg(data["weight_per_item"], data["weight_unit"])
 
             if data["box_key"] == "Others":
@@ -132,7 +132,8 @@ class PackingAPIView(APIView):
                 "items_volume": total_volume,
                 "loaded_volume": loaded_volume,
                 "loaded_weight": max_weight,
-                "total_items": total_items
+                "total_items": total_items,
+                "solution": data["box_key"]
             })
 
         except Exception as e:
