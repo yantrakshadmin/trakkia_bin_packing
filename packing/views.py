@@ -7,14 +7,16 @@ from django.core.files.storage import default_storage
 from django.conf import settings
 import base64
 import time
-import json
-from django.http import HttpResponse
 from rest_framework.views import APIView
 import uuid
 import matplotlib
+import os
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
-from packing.utils import calculate_dummy_height, calculate_matrix_details, calculate_volume_used_percentage, convert_to_kg, convert_to_mm, plot_items_in_box_version1, get_box_dimensions
+from plotly.io import to_html
+import requests
+from django.http import HttpResponse, Http404
+from packing.utils import calculate_dummy_height, calculate_matrix_details, calculate_volume_used_percentage, convert_to_kg, convert_to_mm, plot_items_in_box_version1, get_box_dimensions, plotly_figure_to_imgur_url
 
 def home(request):
     return render(request, 'packing/home.html', {'data': 'Hello, world!'})
@@ -77,7 +79,6 @@ class PackingAPIView(APIView):
 
             print(insert_config, "insert config")
 
-
             total_inserts = len(insert_config)
             best_orientations = [insert[4] for insert in insert_config]
             best_orientation = best_orientations[0]
@@ -105,20 +106,23 @@ class PackingAPIView(APIView):
 
             dummy_height = calculate_dummy_height(data["H_item"], L_item, B_item, H_item, margin, 0, best_orientation, total_inserts)
             dummy_space = f"{remaining_length}x{remaining_width}x{dummy_height}"
-            # items_volume = L_item * B_item * H_item
             loaded_volume = L_box * B_box * H_box
             loaded_weight_percentage = (total_weight/max_weight)*100
 
-            # unique_id = uuid.uuid4().hex
-            # timestamp = now().strftime('%Y%m%d%H%M%S')
-            # file_name = f'{timestamp}_{unique_id}.png'
-            # image_file = ContentFile(base64.b64decode(main_image), name=file_name)
-            # image_path = default_storage.save(f'plots/{file_name}', image_file)
-            # image_url = request.build_absolute_uri(f"{settings.MEDIA_URL}{image_path}")
-            image_data_uri = f"data:image/png;base64,{main_image}"
+            TEMPLATES_DIR = os.path.join(settings.BASE_DIR, "templates")
+            os.makedirs(TEMPLATES_DIR, exist_ok=True)
+
+            unique_id = uuid.uuid4().hex
+            filename = f"plot_{unique_id}.html"
+            filepath = os.path.join(TEMPLATES_DIR, filename)
+
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(to_html(main_image, full_html=True))
+
+            plot_url = request.build_absolute_uri(f"/plot/{unique_id}/")
 
             return Response({
-                "main_image": image_data_uri,
+                "main_image": plot_url,
                 "insert_config": [
                     {
                         "insert_index": cfg[0],
@@ -147,4 +151,17 @@ class PackingAPIView(APIView):
                 {"error": str(e), "trace": traceback.format_exc()},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+        
+
+def serve_plot(request, plot_id):
+    filename = f"plot_{plot_id}.html"
+    filepath = os.path.join(settings.BASE_DIR, "templates", filename)
+
+    if not os.path.exists(filepath):
+        raise Http404("Plot not found.")
+
+    with open(filepath, "r", encoding="utf-8") as f:
+        html_content = f.read()
+
+    return HttpResponse(html_content, content_type="text/html")
 
