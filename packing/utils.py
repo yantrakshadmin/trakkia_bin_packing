@@ -1,5 +1,6 @@
 import base64
 from io import BytesIO
+import plotly.graph_objects as go
 import logging
 import matplotlib
 matplotlib.use('Agg')
@@ -82,6 +83,185 @@ def convert_to_kg(value, unit):
         raise ValueError(f"Unsupported weight unit: {unit}")
     
 
+# def plot_items_in_box_version1(L_box, B_box, H_box, L_item, B_item, H_item, weight_per_item, margin, user_orientations, max_weight=None):
+#     def max_items_with_inserts():
+#         L_insert = L_box
+#         B_insert = B_box
+
+#         remaining_height = H_box
+#         insert_index = 0
+#         current_weight = 0
+#         insert_config = []
+
+#         while remaining_height > 0:
+#             best_local = None
+#             best_items = 0
+#             best_height = 0
+
+#             for orientation in user_orientations:
+#                 dims = {
+#                     'L_B_H': (L_item, B_item, H_item),
+#                     'L_H_B': (L_item, H_item, B_item),
+#                     'B_L_H': (B_item, L_item, H_item),
+#                     'B_H_L': (B_item, H_item, L_item),
+#                     'H_L_B': (H_item, L_item, B_item),
+#                     'H_B_L': (H_item, B_item, L_item)
+#                 }
+#                 dim = dims[orientation]
+#                 x, y, z = dim[0] + margin, dim[1] + margin, dim[2] + margin
+
+#                 num_L = int(L_insert // x)
+#                 num_B = int(B_insert // y)
+#                 num_H = int(remaining_height // z)
+
+#                 total_items = num_L * num_B * min(num_H, 1)
+
+#                 if max_weight and weight_per_item:
+#                     if (current_weight + total_items * weight_per_item) > max_weight:
+#                         total_items = int((max_weight - current_weight) // weight_per_item)
+
+#                 if total_items > best_items:
+#                     best_items = total_items
+#                     best_local = (insert_index, L_insert, B_insert, z, orientation, total_items)
+#                     best_height = z
+
+#             if best_local:
+#                 insert_config.append(best_local)
+#                 current_weight += best_items * weight_per_item
+#                 remaining_height -= best_height
+#                 insert_index += 1
+#             else:
+#                 break
+
+#         return insert_config
+
+#     def plot_items_in_insert(ax, x_start, y_start, z_start, L_insert, B_insert, H_insert, orientation, max_items):
+#         dims = {
+#             'L_B_H': (L_item, B_item, H_item),
+#             'L_H_B': (L_item, H_item, B_item),
+#             'B_L_H': (B_item, L_item, H_item),
+#             'B_H_L': (B_item, H_item, L_item),
+#             'H_L_B': (H_item, L_item, B_item),
+#             'H_B_L': (H_item, B_item, L_item)
+#         }
+#         dim = dims[orientation]
+#         x_dim, y_dim, z_dim = dim[0] + margin, dim[1] + margin, dim[2] + margin
+
+#         max_L = int(L_insert // x_dim)
+#         max_B = int(B_insert // y_dim)
+
+#         num_B = min(max_B, max_items)
+#         num_L = min(max_L, (max_items + num_B - 1) // num_B)
+
+#         used_L = num_L * x_dim
+#         used_B = num_B * y_dim
+
+#         x_offset = (L_insert - used_L) / 2
+#         y_offset = (B_insert - used_B) / 2
+
+#         count = 0
+#         for i in range(num_L):
+#             for j in range(num_B):
+#                 if count >= max_items:
+#                     return
+#                 x = x_start + x_offset + i * x_dim
+#                 y = y_start + y_offset + j * y_dim
+#                 z = z_start
+
+#                 item_coords = np.array([
+#                     [x, y, z],
+#                     [x + dim[0], y, z],
+#                     [x + dim[0], y + dim[1], z],
+#                     [x, y + dim[1], z],
+#                     [x, y, z + dim[2]],
+#                     [x + dim[0], y, z + dim[2]],
+#                     [x + dim[0], y + dim[1], z + dim[2]],
+#                     [x, y + dim[1], z + dim[2]]
+#                 ])
+
+#                 edges = [
+#                     [item_coords[0], item_coords[1], item_coords[2], item_coords[3]],
+#                     [item_coords[4], item_coords[5], item_coords[6], item_coords[7]],
+#                     [item_coords[0], item_coords[1], item_coords[5], item_coords[4]],
+#                     [item_coords[2], item_coords[3], item_coords[7], item_coords[6]],
+#                     [item_coords[1], item_coords[2], item_coords[6], item_coords[5]],
+#                     [item_coords[4], item_coords[7], item_coords[3], item_coords[0]]
+#                 ]
+
+#                 color_map = {
+#                     'L_B_H': 'blue', 'L_H_B': 'lightblue',
+#                     'B_L_H': 'grey', 'B_H_L': 'lightgreen',
+#                     'H_L_B': 'red', 'H_B_L': 'salmon'
+#                 }
+
+#                 item = Poly3DCollection(edges, alpha=0.6, facecolors=color_map.get(orientation, 'cyan'), linewidths=0.5, edgecolors='k')
+#                 ax.add_collection3d(item)
+#                 count += 1
+
+#     insert_config = max_items_with_inserts()
+
+#     fig = plt.figure(figsize=(10, 8))
+#     ax = fig.add_subplot(111, projection='3d')
+
+#     ax.set_xlim([0, L_box])
+#     ax.set_ylim([0, B_box])
+#     ax.set_zlim([0, H_box])
+#     ax.set_xlabel('Length (mm)')
+#     ax.set_ylabel('Breadth (mm)')
+#     ax.set_zlabel('Height (mm)')
+#     ax.set_box_aspect([L_box, B_box, H_box])
+
+#     r = [[0, L_box], [0, B_box], [0, H_box]]
+#     verts = [[r[0][0], r[1][0], r[2][0]], [r[0][1], r[1][0], r[2][0]], [r[0][1], r[1][1], r[2][0]], [r[0][0], r[1][1], r[2][0]],
+#              [r[0][0], r[1][0], r[2][1]], [r[0][1], r[1][0], r[2][1]], [r[0][1], r[1][1], r[2][1]], [r[0][0], r[1][1], r[2][1]]]
+#     faces = [[verts[0], verts[1], verts[2], verts[3]], [verts[4], verts[5], verts[6], verts[7]], [verts[0], verts[1], verts[5], verts[4]],
+#              [verts[2], verts[3], verts[7], verts[6]], [verts[1], verts[2], verts[6], verts[5]], [verts[4], verts[7], verts[3], verts[0]]]
+#     ax.add_collection3d(Poly3DCollection(faces, alpha=0.1, facecolors='white', linewidths=0.5, edgecolors='k'))
+
+#     z_level = margin
+#     for insert in insert_config:
+#         _, L_insert, B_insert, H_insert, orientation, max_items = insert
+
+#         plot_items_in_insert(ax, 0, 0, z_level, L_insert, B_insert, H_insert, orientation, max_items)
+#         z_level += H_insert
+
+#     buffer = BytesIO()
+#     plt.savefig(buffer, format='png', bbox_inches='tight')
+#     buffer.seek(0)
+#     img_str = base64.b64encode(buffer.read()).decode('utf-8')
+#     plt.close()
+
+#     insert_images = []
+#     if insert_config:
+#         unique_orientations = set(ins[4] for ins in insert_config)
+
+#         for orientation in unique_orientations:
+#             for ins in insert_config:
+#                 if ins[4] == orientation:
+#                     _, L_insert, B_insert, H_insert, _, max_items = ins
+#                     break
+
+#             fig2 = plt.figure(figsize=(10, 8))
+#             ax2 = fig2.add_subplot(111, projection='3d')
+#             ax2.set_title(f"Insert View - Orientation {orientation}")
+#             ax2.set_xlim([0, L_insert])
+#             ax2.set_ylim([0, B_insert])
+#             ax2.set_zlim([0, H_insert])
+#             ax2.set_box_aspect([L_insert, B_insert, H_insert])
+
+#             plot_items_in_insert(ax2, 0, 0, 0, L_insert, B_insert, H_insert, orientation, max_items)
+#             buffer2 = BytesIO()
+#             plt.savefig(buffer2, format='png', bbox_inches='tight')
+#             buffer2.seek(0)
+#             insert_img_str = base64.b64encode(buffer2.read()).decode('utf-8')
+#             plt.close()
+#             insert_images.append((orientation,  insert_img_str))
+#     else:
+#         insert_images = []
+    
+#     return img_str, insert_images, insert_config
+
+
 def plot_items_in_box_version1(L_box, B_box, H_box, L_item, B_item, H_item, weight_per_item, margin, user_orientations, max_weight=None):
     def max_items_with_inserts():
         L_insert = L_box
@@ -134,7 +314,7 @@ def plot_items_in_box_version1(L_box, B_box, H_box, L_item, B_item, H_item, weig
 
         return insert_config
 
-    def plot_items_in_insert(ax, x_start, y_start, z_start, L_insert, B_insert, H_insert, orientation, max_items):
+    def plot_items_in_insert(data_list, x_start, y_start, z_start, L_insert, B_insert, H_insert, orientation, max_items):
         dims = {
             'L_B_H': (L_item, B_item, H_item),
             'L_H_B': (L_item, H_item, B_item),
@@ -158,6 +338,12 @@ def plot_items_in_box_version1(L_box, B_box, H_box, L_item, B_item, H_item, weig
         x_offset = (L_insert - used_L) / 2
         y_offset = (B_insert - used_B) / 2
 
+        color_map = {
+            'L_B_H': 'blue', 'L_H_B': 'lightblue',
+            'B_L_H': 'grey', 'B_H_L': 'lightgreen',
+            'H_L_B': 'red', 'H_B_L': 'salmon'
+        }
+
         count = 0
         for i in range(num_L):
             for j in range(num_B):
@@ -167,98 +353,84 @@ def plot_items_in_box_version1(L_box, B_box, H_box, L_item, B_item, H_item, weig
                 y = y_start + y_offset + j * y_dim
                 z = z_start
 
-                item_coords = np.array([
-                    [x, y, z],
-                    [x + dim[0], y, z],
-                    [x + dim[0], y + dim[1], z],
-                    [x, y + dim[1], z],
-                    [x, y, z + dim[2]],
-                    [x + dim[0], y, z + dim[2]],
-                    [x + dim[0], y + dim[1], z + dim[2]],
-                    [x, y + dim[1], z + dim[2]]
-                ])
+                dx, dy, dz = dim[0], dim[1], dim[2]
 
-                edges = [
-                    [item_coords[0], item_coords[1], item_coords[2], item_coords[3]],
-                    [item_coords[4], item_coords[5], item_coords[6], item_coords[7]],
-                    [item_coords[0], item_coords[1], item_coords[5], item_coords[4]],
-                    [item_coords[2], item_coords[3], item_coords[7], item_coords[6]],
-                    [item_coords[1], item_coords[2], item_coords[6], item_coords[5]],
-                    [item_coords[4], item_coords[7], item_coords[3], item_coords[0]]
-                ]
-
-                color_map = {
-                    'L_B_H': 'blue', 'L_H_B': 'lightblue',
-                    'B_L_H': 'grey', 'B_H_L': 'lightgreen',
-                    'H_L_B': 'red', 'H_B_L': 'salmon'
-                }
-
-                item = Poly3DCollection(edges, alpha=0.6, facecolors=color_map.get(orientation, 'cyan'), linewidths=0.5, edgecolors='k')
-                ax.add_collection3d(item)
+                cube = go.Mesh3d(
+                    x=[x, x + dx, x + dx, x, x, x + dx, x + dx, x],
+                    y=[y, y, y + dy, y + dy, y, y, y + dy, y + dy],
+                    z=[z, z, z, z, z + dz, z + dz, z + dz, z + dz],
+                    i=[0, 0, 0, 1, 1, 2, 4, 5, 6, 4, 5, 1],
+                    j=[1, 2, 3, 2, 5, 3, 5, 6, 7, 0, 4, 5],
+                    k=[2, 3, 0, 5, 6, 0, 6, 7, 4, 4, 0, 1],
+                    color=color_map.get(orientation, 'cyan'),
+                    opacity=0.6,
+                    showscale=False
+                )
+                data_list.append(cube)
                 count += 1
 
     insert_config = max_items_with_inserts()
 
-    fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(111, projection='3d')
+    fig_data = []
 
-    ax.set_xlim([0, L_box])
-    ax.set_ylim([0, B_box])
-    ax.set_zlim([0, H_box])
-    ax.set_xlabel('Length (mm)')
-    ax.set_ylabel('Breadth (mm)')
-    ax.set_zlabel('Height (mm)')
-    ax.set_box_aspect([L_box, B_box, H_box])
-
-    r = [[0, L_box], [0, B_box], [0, H_box]]
-    verts = [[r[0][0], r[1][0], r[2][0]], [r[0][1], r[1][0], r[2][0]], [r[0][1], r[1][1], r[2][0]], [r[0][0], r[1][1], r[2][0]],
-             [r[0][0], r[1][0], r[2][1]], [r[0][1], r[1][0], r[2][1]], [r[0][1], r[1][1], r[2][1]], [r[0][0], r[1][1], r[2][1]]]
-    faces = [[verts[0], verts[1], verts[2], verts[3]], [verts[4], verts[5], verts[6], verts[7]], [verts[0], verts[1], verts[5], verts[4]],
-             [verts[2], verts[3], verts[7], verts[6]], [verts[1], verts[2], verts[6], verts[5]], [verts[4], verts[7], verts[3], verts[0]]]
-    ax.add_collection3d(Poly3DCollection(faces, alpha=0.1, facecolors='white', linewidths=0.5, edgecolors='k'))
+    fig_data.append(go.Mesh3d(
+        x=[0, L_box, L_box, 0, 0, L_box, L_box, 0],
+        y=[0, 0, B_box, B_box, 0, 0, B_box, B_box],
+        z=[0, 0, 0, 0, H_box, H_box, H_box, H_box],
+        i=[0, 0, 0, 1, 1, 2, 4, 5, 6, 4, 5, 1],
+        j=[1, 2, 3, 2, 5, 3, 5, 6, 7, 0, 4, 5],
+        k=[2, 3, 0, 5, 6, 0, 6, 7, 4, 4, 0, 1],
+        color='white',
+        opacity=0.1,
+        showscale=False
+    ))
 
     z_level = margin
     for insert in insert_config:
         _, L_insert, B_insert, H_insert, orientation, max_items = insert
-
-        plot_items_in_insert(ax, 0, 0, z_level, L_insert, B_insert, H_insert, orientation, max_items)
+        plot_items_in_insert(fig_data, 0, 0, z_level, L_insert, B_insert, H_insert, orientation, max_items)
         z_level += H_insert
 
-    buffer = BytesIO()
-    plt.savefig(buffer, format='png', bbox_inches='tight')
-    buffer.seek(0)
-    img_str = base64.b64encode(buffer.read()).decode('utf-8')
-    plt.close()
-
-    insert_images = []
-    if insert_config:
-        unique_orientations = set(ins[4] for ins in insert_config)
-
-        for orientation in unique_orientations:
-            for ins in insert_config:
-                if ins[4] == orientation:
-                    _, L_insert, B_insert, H_insert, _, max_items = ins
-                    break
-
-            fig2 = plt.figure(figsize=(10, 8))
-            ax2 = fig2.add_subplot(111, projection='3d')
-            ax2.set_title(f"Insert View - Orientation {orientation}")
-            ax2.set_xlim([0, L_insert])
-            ax2.set_ylim([0, B_insert])
-            ax2.set_zlim([0, H_insert])
-            ax2.set_box_aspect([L_insert, B_insert, H_insert])
-
-            plot_items_in_insert(ax2, 0, 0, 0, L_insert, B_insert, H_insert, orientation, max_items)
-            buffer2 = BytesIO()
-            plt.savefig(buffer2, format='png', bbox_inches='tight')
-            buffer2.seek(0)
-            insert_img_str = base64.b64encode(buffer2.read()).decode('utf-8')
-            plt.close()
-            insert_images.append((orientation,  insert_img_str))
-    else:
-        insert_images = []
+    fig = go.Figure(data=fig_data)
+    fig.update_layout(
+            scene=dict(
+                camera=dict(
+                    eye=dict(x=1.5, y=1.5, z=1.5)
+                ),
+                aspectmode='data'
+            ),
+            margin=dict(l=0, r=0, b=0, t=0)
+        )
     
-    return img_str, insert_images, insert_config
+    insert_figs = []
+    unique_orientations = set(ins[4] for ins in insert_config)
+
+    for orientation in unique_orientations:
+        for ins in insert_config:
+            if ins[4] == orientation:
+                _, L_insert, B_insert, H_insert, _, max_items = ins
+                break
+
+        insert_data = []
+        plot_items_in_insert(insert_data, 0, 0, 0, L_insert, B_insert, H_insert, orientation, max_items)
+
+        insert_fig = go.Figure(data=insert_data)
+        insert_fig.update_layout(
+            title=f"Insert View - Orientation {orientation}",
+            scene=dict(
+                xaxis_title='Length',
+                yaxis_title='Breadth',
+                zaxis_title='Height',
+                xaxis=dict(nticks=10, range=[0, L_insert]),
+                yaxis=dict(nticks=10, range=[0, B_insert]),
+                zaxis=dict(nticks=10, range=[0, H_insert]),
+                aspectratio=dict(x=L_insert, y=B_insert, z=H_insert)
+            ),
+            margin=dict(l=0, r=0, t=50, b=0)
+        )
+        insert_figs.append((orientation, insert_fig))
+
+    return fig, insert_figs, insert_config
 
 
 logger = logging.getLogger(__name__)
@@ -362,3 +534,22 @@ def calculate_dummy_height(H_box, L_item, B_item, H_item, margin, padding, best_
     dummy_height = H_box - total_height_used
     
     return dummy_height
+
+
+def plotly_figure_to_imgur_url(fig, imgur_client_id):
+    # Save Plotly figure to PNG
+    fig.write_image("temp_plot.png", width=1000, height=800)
+
+    # Encode image to base64
+    with open("temp_plot.png", "rb") as f:
+        b64_image = base64.b64encode(f.read()).decode("utf-8")
+
+    # Upload to Imgur
+    headers = {'Authorization': f'Client-ID {imgur_client_id}'}
+    data = {'image': b64_image, 'type': 'base64'}
+    response = requests.post("https://api.imgur.com/3/image", headers=headers, data=data)
+
+    if response.status_code == 200:
+        return response.json()['data']['link']  # ✅ This is your image URL
+    else:
+        raise Exception("Failed to upload image: " + response.text)
